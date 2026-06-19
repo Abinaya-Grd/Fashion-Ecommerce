@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from .models import Review
 from .serializers import ReviewSerializer
 from products.models import Product
+from orders.models import OrderItem
 
 
 def success_response(message, data=None, status_code=status.HTTP_200_OK):
@@ -37,7 +38,10 @@ class ReviewListCreateView(APIView):
 
         serializer = ReviewSerializer(reviews, many=True)
 
-        return success_response("Reviews fetched successfully", serializer.data)
+        return success_response(
+            "Reviews fetched successfully",
+            serializer.data
+        )
 
 
 class AddReviewView(APIView):
@@ -51,10 +55,31 @@ class AddReviewView(APIView):
         try:
             product = Product.objects.get(productid=product_id)
         except Product.DoesNotExist:
-            return error_response("Product not found", status.HTTP_404_NOT_FOUND)
+            return error_response(
+                "Product not found",
+                status.HTTP_404_NOT_FOUND
+            )
+
+        has_purchased = OrderItem.objects.filter(
+            order__user=request.user,
+            product=product,
+            order__order_status__in=[
+                "confirmed",
+                "shipped",
+                "delivered"
+            ]
+        ).exists()
+
+        if not has_purchased:
+            return error_response(
+                "You can review this product only after purchase",
+                status.HTTP_403_FORBIDDEN
+            )
 
         if Review.objects.filter(user=request.user, product=product).exists():
-            return error_response("You already reviewed this product")
+            return error_response(
+                "You already reviewed this product"
+            )
 
         serializer = ReviewSerializer(data={
             "product": product.productid,
@@ -73,6 +98,56 @@ class AddReviewView(APIView):
             )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ReviewDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, pk):
+        try:
+            review = Review.objects.get(
+                reviewid=pk,
+                user=request.user
+            )
+        except Review.DoesNotExist:
+            return error_response(
+                "Review not found",
+                status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = ReviewSerializer(
+            review,
+            data=request.data,
+            partial=True
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+
+            return success_response(
+                "Review updated successfully",
+                serializer.data
+            )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        try:
+            review = Review.objects.get(
+                reviewid=pk,
+                user=request.user
+            )
+        except Review.DoesNotExist:
+            return error_response(
+                "Review not found",
+                status.HTTP_404_NOT_FOUND
+            )
+
+        review.delete()
+
+        return success_response(
+            "Review deleted successfully"
+        )
 
 
 class ProductRatingSummaryView(APIView):

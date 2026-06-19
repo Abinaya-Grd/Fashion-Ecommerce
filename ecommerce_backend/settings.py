@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import timedelta
+from decouple import config
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
@@ -134,7 +135,8 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-
+RAZORPAY_KEY_ID = "rzp_test_T3N8Yp0abzZp21"
+RAZORPAY_KEY_SECRET = "dX1Cb32bwYR8nREn3EwZ5eyX"
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
