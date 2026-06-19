@@ -146,6 +146,16 @@ class MyOrdersView(APIView):
             "Orders fetched successfully",
             serializer.data
         )
+    def delete(self, request, pk):
+        try:
+             orderid = Order.objects.get(orderid=pk)
+            
+        except order.DoesNotExist:
+             return error_response("Order not found", status.HTTP_404_NOT_FOUND)
+
+        order.delete()
+        return success_response("Order deleted successfully")       
+   
 
 
 class OrderDetailView(APIView):
@@ -163,3 +173,5 @@ class OrderDetailView(APIView):
             "Order fetched successfully",
             serializer.data
         )
+        
+             

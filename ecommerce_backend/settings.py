@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'payments',
     'coupons',
     'reviews',
+    'invoices',
     'banners',
     'dashboard',
 ]

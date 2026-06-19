@@ -78,6 +78,7 @@ urlpatterns = [
     path('api/payments', include('payments.urls')),
     path('api/coupons', include('coupons.urls')),
     path('api/reviews', include('reviews.urls')),
+    path('api/invoices', include('invoices.urls')),
 ]
 
 if settings.DEBUG:
