@@ -1,12 +1,16 @@
+from decimal import Decimal
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+
 from django.db import transaction
+
 from .models import Order, OrderItem
 from .serializers import OrderSerializer
 from cart.models import Cart
-from products.models import ProductVariant
+from coupons.models import Coupon
 
 
 def success_response(message, data=None, status_code=status.HTTP_200_OK):
@@ -31,6 +35,7 @@ class CreateOrderFromCartView(APIView):
     def post(self, request):
         shipping_address = request.data.get("shipping_address")
         phone = request.data.get("phone")
+        coupon_code = request.data.get("coupon_code")
 
         if not shipping_address:
             return error_response("Shipping address is required")
@@ -48,19 +53,58 @@ class CreateOrderFromCartView(APIView):
         if not cart_items.exists():
             return error_response("Cart is empty")
 
-        total_amount = 0
-
-        order = Order.objects.create(
-            user=request.user,
-            shipping_address=shipping_address,
-            phone=phone,
-            total_amount=0
-        )
+        total_amount = Decimal("0.00")
+        discount_amount = Decimal("0.00")
+        coupon = None
 
         for item in cart_items:
             price = item.price
             total_price = price * item.quantity
             total_amount += total_price
+
+            if item.variant:
+                variant = item.variant
+
+                if variant.stock < item.quantity:
+                    return error_response(
+                        f"Insufficient stock for {item.product.name}"
+                    )
+
+        if coupon_code:
+            try:
+                coupon = Coupon.objects.get(code=coupon_code)
+            except Coupon.DoesNotExist:
+                return error_response("Invalid coupon code")
+
+            if not coupon.is_valid_coupon():
+                return error_response("Coupon expired, inactive or limit reached")
+
+            if total_amount < coupon.min_order_amount:
+                return error_response("Order amount is less than minimum coupon amount")
+
+            if coupon.discount_type == "percentage":
+                discount_amount = (total_amount * coupon.discount_value) / 100
+            else:
+                discount_amount = coupon.discount_value
+
+            if discount_amount > total_amount:
+                discount_amount = total_amount
+
+        final_amount = total_amount - discount_amount
+
+        order = Order.objects.create(
+            user=request.user,
+            shipping_address=shipping_address,
+            phone=phone,
+            total_amount=total_amount,
+            coupon=coupon,
+            discount_amount=discount_amount,
+            final_amount=final_amount
+        )
+
+        for item in cart_items:
+            price = item.price
+            total_price = price * item.quantity
 
             OrderItem.objects.create(
                 order=order,
@@ -73,17 +117,12 @@ class CreateOrderFromCartView(APIView):
 
             if item.variant:
                 variant = item.variant
-
-                if variant.stock < item.quantity:
-                    return error_response(
-                        f"Insufficient stock for {item.product.name}"
-                    )
-
                 variant.stock -= item.quantity
                 variant.save()
 
-        order.total_amount = total_amount
-        order.save()
+        if coupon:
+            coupon.used_count += 1
+            coupon.save()
 
         cart_items.delete()
 

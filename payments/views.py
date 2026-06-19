@@ -56,7 +56,7 @@ class CreatePaymentView(APIView):
             order=order,
             payment_method=payment_method,
             transaction_id=transaction_id,
-            amount=order.total_amount,
+           amount=order.final_amount ,
             payment_status=payment_status,
             paid_at=paid_at
         )
@@ -111,7 +111,7 @@ class CreateRazorpayOrderView(APIView):
             )
         )
 
-        amount = int(order.total_amount * 100)
+        amount = int(order.final_amount * 100)
 
         razorpay_order = client.order.create({
             "amount": amount,

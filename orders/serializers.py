@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Order, OrderItem
+from coupons.models import Coupon
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -23,13 +24,24 @@ class OrderItemSerializer(serializers.ModelSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
 
+    coupon_code = serializers.CharField(
+        source='coupon.code',
+        read_only=True
+    )
+
     class Meta:
         model = Order
         fields = [
             'orderid',
             'user',
             'items',
+
             'total_amount',
+            'coupon',
+            'coupon_code',
+            'discount_amount',
+            'final_amount',
+
             'order_status',
             'payment_status',
             'shipping_address',
@@ -39,5 +51,6 @@ class OrderSerializer(serializers.ModelSerializer):
         ]
 
         extra_kwargs = {
-            'user': {'read_only': True}
+            'user': {'read_only': True},
+            'coupon': {'required': False, 'allow_null': True},
         }
