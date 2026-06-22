@@ -6,13 +6,14 @@ from coupons.models import Coupon
 
 class Order(models.Model):
     ORDER_STATUS = (
-        ('pending', 'Pending'),
-        ('confirmed', 'Confirmed'),
-        ('shipped', 'Shipped'),
-        ('delivered', 'Delivered'),
-        ('cancelled', 'Cancelled'),
-    )
-
+    ('pending', 'Pending'),
+    ('confirmed', 'Confirmed'),
+    ('packed', 'Packed'),
+    ('shipped', 'Shipped'),
+    ('out_for_delivery', 'Out For Delivery'),
+    ('delivered', 'Delivered'),
+    ('cancelled', 'Cancelled'),
+)
     PAYMENT_STATUS = (
         ('pending', 'Pending'),
         ('paid', 'Paid'),

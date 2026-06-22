@@ -1,12 +1,9 @@
 from decimal import Decimal
-
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-
 from django.db import transaction
-
 from .models import Order, OrderItem
 from .serializers import OrderSerializer
 from cart.models import Cart
@@ -62,13 +59,10 @@ class CreateOrderFromCartView(APIView):
             total_price = price * item.quantity
             total_amount += total_price
 
-            if item.variant:
-                variant = item.variant
-
-                if variant.stock < item.quantity:
-                    return error_response(
-                        f"Insufficient stock for {item.product.name}"
-                    )
+            if item.variant and item.variant.stock < item.quantity:
+                return error_response(
+                    f"Insufficient stock for {item.product.name}"
+                )
 
         if coupon_code:
             try:
@@ -116,9 +110,8 @@ class CreateOrderFromCartView(APIView):
             )
 
             if item.variant:
-                variant = item.variant
-                variant.stock -= item.quantity
-                variant.save()
+                item.variant.stock -= item.quantity
+                item.variant.save()
 
         if coupon:
             coupon.used_count += 1
@@ -146,16 +139,6 @@ class MyOrdersView(APIView):
             "Orders fetched successfully",
             serializer.data
         )
-    def delete(self, request, pk):
-        try:
-             orderid = Order.objects.get(orderid=pk)
-            
-        except order.DoesNotExist:
-             return error_response("Order not found", status.HTTP_404_NOT_FOUND)
-
-        order.delete()
-        return success_response("Order deleted successfully")       
-   
 
 
 class OrderDetailView(APIView):
@@ -173,5 +156,216 @@ class OrderDetailView(APIView):
             "Order fetched successfully",
             serializer.data
         )
+
+    def delete(self, request, pk):
+        try:
+            order = Order.objects.get(orderid=pk, user=request.user)
+        except Order.DoesNotExist:
+            return error_response("Order not found", status.HTTP_404_NOT_FOUND)
+
+        if order.payment_status == "paid":
+            return error_response(
+                "Paid order cannot be deleted. Please cancel the order instead."
+            )
+
+        order.delete()
+
+        return success_response("Order deleted successfully")
+
+
+class CancelOrderView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, pk):
+        try:
+            order = Order.objects.get(orderid=pk, user=request.user)
+        except Order.DoesNotExist:
+            return error_response("Order not found", status.HTTP_404_NOT_FOUND)
+
+        if order.order_status in ["shipped", "delivered"]:
+            return error_response("Order cannot be cancelled after shipping")
+
+        if order.order_status == "cancelled":
+            return error_response("Order already cancelled")
+
+        order.order_status = "cancelled"
+        order.save()
+
+        serializer = OrderSerializer(order)
+
+        return success_response(
+            "Order cancelled successfully",
+            serializer.data
+        )
         
-             
+class UpdateOrderStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, pk):
+        new_status = request.data.get("order_status")
+
+        allowed_status = [
+            "pending",
+            "confirmed",
+            "packed",
+            "shipped",
+            "out_for_delivery",
+            "delivered",
+            "cancelled",
+        ]
+
+        if new_status not in allowed_status:
+            return error_response("Invalid order status")
+
+        try:
+            order = Order.objects.get(orderid=pk)
+        except Order.DoesNotExist:
+            return error_response("Order not found", status.HTTP_404_NOT_FOUND)
+
+        order.order_status = new_status
+
+        if new_status == "delivered" and order.payment_status == "pending":
+            order.payment_status = "paid"
+
+        order.save()
+
+        serializer = OrderSerializer(order)
+
+        return success_response(
+            "Order status updated successfully",
+            serializer.data
+        )
+
+
+class OrderTrackingView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            order = Order.objects.get(orderid=pk, user=request.user)
+        except Order.DoesNotExist:
+            return error_response("Order not found", status.HTTP_404_NOT_FOUND)
+
+        tracking_steps = [
+            "pending",
+            "confirmed",
+            "packed",
+            "shipped",
+            "out_for_delivery",
+            "delivered",
+        ]
+
+        current_index = tracking_steps.index(order.order_status) if order.order_status in tracking_steps else -1
+
+        tracking = []
+
+        for index, step in enumerate(tracking_steps):
+            tracking.append({
+                "status": step,
+                "completed": index <= current_index,
+                "current": index == current_index
+            })
+
+        return success_response(
+            "Order tracking fetched successfully",
+            {
+                "order_id": order.orderid,
+                "order_status": order.order_status,
+                "payment_status": order.payment_status,
+                "tracking": tracking
+            }
+        )
+class UpdateOrderStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, pk):
+        new_status = request.data.get("order_status")
+
+        allowed_status = [
+            "pending",
+            "confirmed",
+            "packed",
+            "shipped",
+            "out_for_delivery",
+            "delivered",
+            "cancelled",
+        ]
+
+        if new_status not in allowed_status:
+            return error_response("Invalid order status")
+
+        try:
+            order = Order.objects.get(orderid=pk)
+        except Order.DoesNotExist:
+            return error_response("Order not found", status.HTTP_404_NOT_FOUND)
+
+        order.order_status = new_status
+
+        if new_status == "delivered" and order.payment_status == "pending":
+            order.payment_status = "paid"
+
+        order.save()
+
+        serializer = OrderSerializer(order)
+
+        return success_response(
+            "Order status updated successfully",
+            serializer.data
+        )
+
+
+class OrderTrackingView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            order = Order.objects.get(orderid=pk, user=request.user)
+        except Order.DoesNotExist:
+            return error_response("Order not found", status.HTTP_404_NOT_FOUND)
+
+        if order.order_status == "cancelled":
+            return success_response(
+                "Order tracking fetched successfully",
+                {
+                    "order_id": order.orderid,
+                    "order_status": order.order_status,
+                    "payment_status": order.payment_status,
+                    "tracking": [
+                        {
+                            "status": "cancelled",
+                            "completed": True,
+                            "current": True
+                        }
+                    ]
+                }
+            )
+
+        tracking_steps = [
+            "pending",
+            "confirmed",
+            "packed",
+            "shipped",
+            "out_for_delivery",
+            "delivered",
+        ]
+
+        current_index = tracking_steps.index(order.order_status)
+
+        tracking = []
+
+        for index, step in enumerate(tracking_steps):
+            tracking.append({
+                "status": step,
+                "completed": index <= current_index,
+                "current": index == current_index
+            })
+
+        return success_response(
+            "Order tracking fetched successfully",
+            {
+                "order_id": order.orderid,
+                "order_status": order.order_status,
+                "payment_status": order.payment_status,
+                "tracking": tracking
+            }
+        )
