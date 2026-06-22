@@ -79,7 +79,7 @@ urlpatterns = [
     path('api/coupons', include('coupons.urls')),
     path('api/reviews', include('reviews.urls')),
     path('api/invoices', include('invoices.urls')),
-    path('api/dashboard/', include('dashboard.urls')),
+    path('api/dashboard', include('dashboard.urls')),
 ]
 
 if settings.DEBUG:
