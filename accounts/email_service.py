@@ -61,3 +61,4 @@ def send_welcome_email(user):
         },
         to_email=user.email,
     )
+    
