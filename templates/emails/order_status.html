@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Order Status Update</title>
+</head>
+<body style="font-family:Arial;background:#f5f5f5;padding:20px;">
+
+<div style="max-width:600px;margin:auto;background:#fff;padding:30px;border-radius:10px;">
+
+    <h2 style="color:#ff6b00;">SSS Fashions</h2>
+
+    <h3>Order Status Update</h3>
+
+    <p>Hello {{ username }},</p>
+
+    <p>Your order status has been updated.</p>
+
+    <table style="width:100%;border-collapse:collapse;margin-top:20px;">
+        <tr>
+            <td style="padding:10px;border:1px solid #ddd;"><strong>Order ID</strong></td>
+            <td style="padding:10px;border:1px solid #ddd;">{{ orderid }}</td>
+        </tr>
+        <tr>
+            <td style="padding:10px;border:1px solid #ddd;"><strong>Order Status</strong></td>
+            <td style="padding:10px;border:1px solid #ddd;color:#ff6b00;font-weight:bold;">{{ order_status }}</td>
+        </tr>
+        <tr>
+            <td style="padding:10px;border:1px solid #ddd;"><strong>Payment Status</strong></td>
+            <td style="padding:10px;border:1px solid #ddd;">{{ payment_status }}</td>
+        </tr>
+        <tr>
+            <td style="padding:10px;border:1px solid #ddd;"><strong>Final Amount</strong></td>
+            <td style="padding:10px;border:1px solid #ddd;">₹ {{ final_amount }}</td>
+        </tr>
+    </table>
+
+    <p style="margin-top:20px;">You can track your order anytime from your account dashboard.</p>
+
+    <p>Thank you,<br>SSS Fashions Team</p>
+
+</div>
+
+</body>
+</html>

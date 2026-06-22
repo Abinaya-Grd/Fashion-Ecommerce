@@ -8,6 +8,8 @@ from .models import Order, OrderItem
 from .serializers import OrderSerializer
 from cart.models import Cart
 from coupons.models import Coupon
+from .email_service import send_order_status_email
+
 
 
 def success_response(message, data=None, status_code=status.HTTP_200_OK):
@@ -229,82 +231,13 @@ class UpdateOrderStatusView(APIView):
 
         order.save()
 
-        serializer = OrderSerializer(order)
-
-        return success_response(
-            "Order status updated successfully",
-            serializer.data
-        )
-
-
-class OrderTrackingView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, pk):
-        try:
-            order = Order.objects.get(orderid=pk, user=request.user)
-        except Order.DoesNotExist:
-            return error_response("Order not found", status.HTTP_404_NOT_FOUND)
-
-        tracking_steps = [
-            "pending",
-            "confirmed",
-            "packed",
-            "shipped",
-            "out_for_delivery",
-            "delivered",
-        ]
-
-        current_index = tracking_steps.index(order.order_status) if order.order_status in tracking_steps else -1
-
-        tracking = []
-
-        for index, step in enumerate(tracking_steps):
-            tracking.append({
-                "status": step,
-                "completed": index <= current_index,
-                "current": index == current_index
-            })
-
-        return success_response(
-            "Order tracking fetched successfully",
-            {
-                "order_id": order.orderid,
-                "order_status": order.order_status,
-                "payment_status": order.payment_status,
-                "tracking": tracking
-            }
-        )
-class UpdateOrderStatusView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def put(self, request, pk):
-        new_status = request.data.get("order_status")
-
-        allowed_status = [
-            "pending",
-            "confirmed",
-            "packed",
-            "shipped",
-            "out_for_delivery",
-            "delivered",
-            "cancelled",
-        ]
-
-        if new_status not in allowed_status:
-            return error_response("Invalid order status")
+        print("Reached email section")
 
         try:
-            order = Order.objects.get(orderid=pk)
-        except Order.DoesNotExist:
-            return error_response("Order not found", status.HTTP_404_NOT_FOUND)
-
-        order.order_status = new_status
-
-        if new_status == "delivered" and order.payment_status == "pending":
-            order.payment_status = "paid"
-
-        order.save()
+            send_order_status_email(order)
+            print("Email sent successfully")
+        except Exception as e:
+            print("Email Error:", e)
 
         serializer = OrderSerializer(order)
 
@@ -312,7 +245,6 @@ class UpdateOrderStatusView(APIView):
             "Order status updated successfully",
             serializer.data
         )
-
 
 class OrderTrackingView(APIView):
     permission_classes = [IsAuthenticated]
