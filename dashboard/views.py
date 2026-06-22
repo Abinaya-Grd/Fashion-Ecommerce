@@ -3,10 +3,11 @@ from django.db.models import Sum, Count
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+# from rest_framework.permissions import IsAuthenticated
 from accounts.models import CustomUser
 from products.models import Product, ProductVariant
 from orders.models import Order, OrderItem
+from accounts.permissions import IsAdminRole
 
 
 def success_response(message, data=None, status_code=status.HTTP_200_OK):
@@ -18,7 +19,7 @@ def success_response(message, data=None, status_code=status.HTTP_200_OK):
 
 
 class DashboardSummaryView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminRole]
 
     def get(self, request):
         total_users = CustomUser.objects.count()
@@ -50,7 +51,7 @@ class DashboardSummaryView(APIView):
 
 
 class RecentOrdersView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminRole]
 
     def get(self, request):
         orders = Order.objects.select_related("user").order_by("-orderid")[:10]
@@ -75,7 +76,7 @@ class RecentOrdersView(APIView):
 
 
 class LowStockProductsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminRole]
 
     def get(self, request):
         variants = ProductVariant.objects.select_related(
@@ -101,7 +102,7 @@ class LowStockProductsView(APIView):
 
 
 class TopSellingProductsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminRole]
 
     def get(self, request):
         top_products = OrderItem.objects.values(
