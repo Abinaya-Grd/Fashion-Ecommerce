@@ -14,6 +14,7 @@ from .serializers import (
     ResetPasswordSerializer,
     VerifyEmailSerializer,
     AddressSerializer,
+    
 )
 from .utils import generate_otp
 from .email_service import (
@@ -316,3 +317,41 @@ class AddressDetailView(APIView):
 
         address.delete()
         return success_response("Address deleted successfully")
+    
+    def get(self, request, pk):
+        try:
+            address = Address.objects.get(pk=pk, user=request.user)
+        except Address.DoesNotExist:
+            return error_response("Address not found", status.HTTP_404_NOT_FOUND)
+
+        serializer = AddressSerializer(address)
+        return success_response("Address fetched successfully", serializer.data)
+    
+class SetDefaultAddressView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, pk):
+        try:
+            address = Address.objects.get(
+                pk=pk,
+                user=request.user
+            )
+        except Address.DoesNotExist:
+            return error_response(
+                "Address not found",
+                status.HTTP_404_NOT_FOUND
+            )
+
+        Address.objects.filter(
+            user=request.user
+        ).update(is_default=False)
+
+        address.is_default = True
+        address.save()
+
+        serializer = AddressSerializer(address)
+
+        return success_response(
+            "Default address updated successfully",
+            serializer.data
+        )

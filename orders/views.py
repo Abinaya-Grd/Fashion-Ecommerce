@@ -8,6 +8,7 @@ from .models import Order, OrderItem
 from .serializers import OrderSerializer
 from cart.models import Cart
 from coupons.models import Coupon
+from accounts.models import Address
 from .email_service import send_order_status_email
 
 
@@ -32,15 +33,41 @@ class CreateOrderFromCartView(APIView):
 
     @transaction.atomic
     def post(self, request):
-        shipping_address = request.data.get("shipping_address")
-        phone = request.data.get("phone")
+        address_id = request.data.get("address_id")
         coupon_code = request.data.get("coupon_code")
 
-        if not shipping_address:
-            return error_response("Shipping address is required")
+        if address_id:
+            try:
+                address = Address.objects.get(
+                    id=address_id,
+                    user=request.user
+                )
+            except Address.DoesNotExist:
+                return error_response(
+                    "Address not found",
+                    status.HTTP_404_NOT_FOUND
+                )
+        else:
+            address = Address.objects.filter(
+                user=request.user,
+                is_default=True
+            ).first()
 
-        if not phone:
-            return error_response("Phone number is required")
+            if not address:
+                return error_response(
+                    "Please add or select a shipping address"
+                )
+
+        shipping_address = (
+            f"{address.full_name}, "
+            f"{address.address_line_1}, "
+            f"{address.address_line_2 or ''}, "
+            f"{address.city}, "
+            f"{address.state} - {address.pincode}, "
+            f"{address.country}"
+        )
+
+        phone = address.phone
 
         try:
             cart = Cart.objects.get(user=request.user)
@@ -64,6 +91,9 @@ class CreateOrderFromCartView(APIView):
             if item.variant and item.variant.stock < item.quantity:
                 return error_response(
                     f"Insufficient stock for {item.product.name}"
+                    f"Variant ID: {item.variant.variantid}, "
+                    f"Available Stock: {item.variant.stock}, "
+                    f"Cart Quantity: {item.quantity}"
                 )
 
         if coupon_code:
@@ -73,10 +103,14 @@ class CreateOrderFromCartView(APIView):
                 return error_response("Invalid coupon code")
 
             if not coupon.is_valid_coupon():
-                return error_response("Coupon expired, inactive or limit reached")
+                return error_response(
+                    "Coupon expired, inactive or limit reached"
+                )
 
             if total_amount < coupon.min_order_amount:
-                return error_response("Order amount is less than minimum coupon amount")
+                return error_response(
+                    "Order amount is less than minimum coupon amount"
+                )
 
             if coupon.discount_type == "percentage":
                 discount_amount = (total_amount * coupon.discount_value) / 100
@@ -128,7 +162,6 @@ class CreateOrderFromCartView(APIView):
             serializer.data,
             status.HTTP_201_CREATED
         )
-
 
 class MyOrdersView(APIView):
     permission_classes = [IsAuthenticated]
