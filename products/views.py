@@ -1,10 +1,12 @@
 from django.db import transaction
-
+from django.db.models import Q
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
-
+from django.core.paginator import Paginator
+from django.db.models import Sum
+from orders.models import OrderItem
 from .models import Product, ProductImage, Color, Size, ProductVariant
 from .serializers import (
     ProductSerializer,
@@ -32,12 +34,27 @@ def error_response(message, status_code=status.HTTP_400_BAD_REQUEST):
 
 class ProductListCreateView(APIView):
     def get(self, request):
+        search = request.query_params.get('search')
         category_id = request.query_params.get('category_id')
         subcategory_id = request.query_params.get('subcategory_id')
         product_style_id = request.query_params.get('product_style_id')
         brand_id = request.query_params.get('brand_id')
+        min_price = request.query_params.get('min_price')
+        max_price = request.query_params.get('max_price')
+        in_stock = request.query_params.get('in_stock')
+        sort_by = request.query_params.get('sort_by')
 
-        products = Product.objects.all().order_by('-productid')
+        products = Product.objects.filter(status='active').order_by('-productid')
+
+        if search:
+            products = products.filter(
+                Q(name__icontains=search) |
+                Q(sku__icontains=search) |
+                Q(description__icontains=search) |
+                Q(brand__name__icontains=search) |
+                Q(category__name__icontains=search) |
+                Q(subcategory__name__icontains=search)
+            )
 
         if category_id:
             products = products.filter(category_id=category_id)
@@ -51,13 +68,59 @@ class ProductListCreateView(APIView):
         if brand_id:
             products = products.filter(brand_id=brand_id)
 
-        serializer = ProductSerializer(products, many=True)
+        if min_price:
+            products = products.filter(price__gte=min_price)
 
-        return success_response(
-            "Products fetched successfully",
-            serializer.data
-        )
+        if max_price:
+            products = products.filter(price__lte=max_price)
 
+        if in_stock == "true":
+            products = products.filter(is_in_stock=True)
+
+        if in_stock == "false":
+            products = products.filter(is_in_stock=False)
+
+        if sort_by == "price_low_high":
+            products = products.order_by("price")
+        elif sort_by == "price_high_low":
+            products = products.order_by("-price")
+        elif sort_by == "latest":
+            products = products.order_by("-created_at")
+        elif sort_by == "oldest":
+            products = products.order_by("created_at")
+
+        page_number = request.query_params.get("page", 1)
+        page_size = int(request.query_params.get("page_size", 10))
+
+        paginator = Paginator(products, page_size)
+        page_obj = paginator.get_page(page_number)
+
+        serializer = ProductSerializer(page_obj.object_list, many=True)
+
+        return Response({
+            "success": True,
+            "message": "Products fetched successfully",
+            "total_products": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "data": serializer.data
+        })
+
+    def post(self, request):
+        serializer = ProductSerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+
+            return success_response(
+                "Product created successfully",
+                serializer.data,
+                status.HTTP_201_CREATED
+            )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     def post(self, request):
         serializer = ProductSerializer(data=request.data)
 
@@ -344,3 +407,74 @@ class ProductVariantListCreateView(APIView):
             )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class RelatedProductsView(APIView):
+    def get(self, request, pk):
+        try:
+            product = Product.objects.get(productid=pk, status="active")
+        except Product.DoesNotExist:
+            return error_response("Product not found", status.HTTP_404_NOT_FOUND)
+
+        products = Product.objects.filter(
+            status="active",
+            category=product.category
+        ).exclude(productid=product.productid).order_by("-created_at")[:8]
+
+        serializer = ProductSerializer(products, many=True)
+
+        return success_response(
+            "Related products fetched successfully",
+            serializer.data
+        )
+
+
+class LatestProductsView(APIView):
+    def get(self, request):
+        products = Product.objects.filter(
+            status="active"
+        ).order_by("-created_at")[:12]
+
+        serializer = ProductSerializer(products, many=True)
+
+        return success_response(
+            "Latest products fetched successfully",
+            serializer.data
+        )
+
+
+class FeaturedProductsView(APIView):
+    def get(self, request):
+        products = Product.objects.filter(
+            status="active",
+            offer_price__isnull=False
+        ).order_by("-created_at")[:12]
+
+        serializer = ProductSerializer(products, many=True)
+
+        return success_response(
+            "Featured products fetched successfully",
+            serializer.data
+        )
+
+
+class BestSellerProductsView(APIView):
+    def get(self, request):
+        best_sellers = OrderItem.objects.values(
+            "product"
+        ).annotate(
+            total_sold=Sum("quantity")
+        ).order_by("-total_sold")[:12]
+
+        product_ids = [item["product"] for item in best_sellers]
+
+        products = Product.objects.filter(
+            productid__in=product_ids,
+            status="active"
+        )
+
+        serializer = ProductSerializer(products, many=True)
+
+        return success_response(
+            "Best seller products fetched successfully",
+            serializer.data
+        )    

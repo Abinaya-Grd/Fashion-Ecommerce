@@ -30,16 +30,7 @@ from categories.views import (
     BrandDetailView,
 )
 
-from products.views import (
-    ProductListCreateView,
-    ProductDetailView,
-    ProductImageListCreateView,
-    ProductImageDetailView,
-    ColorListCreateView,
-    SizeListCreateView,
-    ProductVariantListCreateView,
-    ProductFullCreateView,
-)
+
 
 urlpatterns = [
 
@@ -59,19 +50,9 @@ urlpatterns = [
     path('api/brands', BrandListCreateView.as_view()),
     path('api/brands/<int:pk>', BrandDetailView.as_view()),
 
-    path('api/products/create-full', ProductFullCreateView.as_view()),
-    path('api/products', ProductListCreateView.as_view()),
-    path('api/products/<int:pk>', ProductDetailView.as_view()),
+    # Products
+    path('api/products', include('products.urls')),
 
-    path('api/product-images', ProductImageListCreateView.as_view()),
-    path('api/product-images/<int:pk>', ProductImageDetailView.as_view()),
-
-    path('api/colors', ColorListCreateView.as_view()),
-
-    path('api/sizes', SizeListCreateView.as_view()),
-
-    path('api/product-variants', ProductVariantListCreateView.as_view()),
-    
     path('api/cart', include('cart.urls')),
     path('api/wishlist', include('wishlist.urls')),
     path('api/orders', include('orders.urls')),

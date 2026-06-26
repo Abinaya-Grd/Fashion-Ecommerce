@@ -27,7 +27,6 @@ def error_response(message, status_code=status.HTTP_400_BAD_REQUEST):
         "message": message
     }, status=status_code)
 
-
 class CreateOrderFromCartView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -88,9 +87,14 @@ class CreateOrderFromCartView(APIView):
             total_price = price * item.quantity
             total_amount += total_price
 
+            if item.variant and item.variant.product != item.product:
+                return error_response(
+                    f"Invalid variant selected for {item.product.name}"
+                )
+
             if item.variant and item.variant.stock < item.quantity:
                 return error_response(
-                    f"Insufficient stock for {item.product.name}"
+                    f"Insufficient stock for {item.product.name}. "
                     f"Variant ID: {item.variant.variantid}, "
                     f"Available Stock: {item.variant.stock}, "
                     f"Cart Quantity: {item.quantity}"
@@ -162,7 +166,6 @@ class CreateOrderFromCartView(APIView):
             serializer.data,
             status.HTTP_201_CREATED
         )
-
 class MyOrdersView(APIView):
     permission_classes = [IsAuthenticated]
 
