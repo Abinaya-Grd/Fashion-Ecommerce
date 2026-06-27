@@ -16,6 +16,12 @@ from .views import (
     FeaturedProductsView,
     BestSellerProductsView,
     RelatedProductsView,
+    
+    AddRecentlyViewedView,
+    RecentlyViewedProductsView,
+    RecommendedProductsView,
+    FrequentlyBoughtTogetherView,
+    TrendingProductsView,
 )
 
 urlpatterns = [
@@ -32,4 +38,9 @@ urlpatterns = [
     path('/colors', ColorListCreateView.as_view()),
     path('/sizes', SizeListCreateView.as_view()),
     path('/variants', ProductVariantListCreateView.as_view()),
+    path('/<int:pk>/view', AddRecentlyViewedView.as_view()),
+    path('/recently-viewed', RecentlyViewedProductsView.as_view()),
+    path('/recommended', RecommendedProductsView.as_view()),
+    path('/<int:pk>/frequently-bought', FrequentlyBoughtTogetherView.as_view()),
+    path('/trending', TrendingProductsView.as_view()),
 ]

@@ -7,6 +7,10 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.paginator import Paginator
 from django.db.models import Sum
 from orders.models import OrderItem
+from django.utils import timezone
+from datetime import timedelta
+from rest_framework.permissions import IsAuthenticated
+from .models import RecentlyViewedProduct
 from .models import Product, ProductImage, Color, Size, ProductVariant
 from .serializers import (
     ProductSerializer,
@@ -476,5 +480,116 @@ class BestSellerProductsView(APIView):
 
         return success_response(
             "Best seller products fetched successfully",
+            serializer.data
+        )    
+        
+class AddRecentlyViewedView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            product = Product.objects.get(productid=pk, status="active")
+        except Product.DoesNotExist:
+            return error_response("Product not found", status.HTTP_404_NOT_FOUND)
+
+        RecentlyViewedProduct.objects.update_or_create(
+            user=request.user,
+            product=product
+        )
+
+        return success_response("Product added to recently viewed")
+
+
+class RecentlyViewedProductsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        viewed = RecentlyViewedProduct.objects.filter(
+            user=request.user
+        ).select_related("product").order_by("-viewed_at")[:10]
+
+        products = [item.product for item in viewed]
+        serializer = ProductSerializer(products, many=True)
+
+        return success_response(
+            "Recently viewed products fetched successfully",
+            serializer.data
+        )
+
+
+class RecommendedProductsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        viewed_categories = RecentlyViewedProduct.objects.filter(
+            user=request.user
+        ).values_list("product__category", flat=True)
+
+        products = Product.objects.filter(
+            status="active",
+            category__in=viewed_categories
+        ).exclude(
+            viewed_by__user=request.user
+        ).distinct().order_by("-created_at")[:12]
+
+        serializer = ProductSerializer(products, many=True)
+
+        return success_response(
+            "Recommended products fetched successfully",
+            serializer.data
+        )
+
+
+class FrequentlyBoughtTogetherView(APIView):
+    def get(self, request, pk):
+        order_ids = OrderItem.objects.filter(
+            product_id=pk
+        ).values_list("order_id", flat=True)
+
+        product_ids = OrderItem.objects.filter(
+            order_id__in=order_ids
+        ).exclude(
+            product_id=pk
+        ).values("product").annotate(
+            total_bought=Sum("quantity")
+        ).order_by("-total_bought")[:8]
+
+        ids = [item["product"] for item in product_ids]
+
+        products = Product.objects.filter(
+            productid__in=ids,
+            status="active"
+        )
+
+        serializer = ProductSerializer(products, many=True)
+
+        return success_response(
+            "Frequently bought together products fetched successfully",
+            serializer.data
+        )
+
+
+class TrendingProductsView(APIView):
+    def get(self, request):
+        last_30_days = timezone.now() - timedelta(days=30)
+
+        product_ids = OrderItem.objects.filter(
+            order__created_at__gte=last_30_days,
+            order__payment_status="paid"
+        ).values("product").annotate(
+            total_sold=Sum("quantity")
+        ).order_by("-total_sold")[:12]
+
+        ids = [item["product"] for item in product_ids]
+
+        products = Product.objects.filter(
+            productid__in=ids,
+            status="active"
+        )
+
+        serializer = ProductSerializer(products, many=True)
+
+        return success_response(
+            "Trending products fetched successfully",
             serializer.data
         )    

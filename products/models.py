@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 from django.utils.text import slugify
 from categories.models import Category, SubCategory, ProductStyle, Brand
 
@@ -186,3 +187,29 @@ class ProductVariant(models.Model):
 
     def __str__(self):
         return self.sku
+    
+    from django.conf import settings
+
+
+class RecentlyViewedProduct(models.Model):
+    viewedid = models.AutoField(primary_key=True)
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="recently_viewed"
+    )
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="viewed_by"
+    )
+
+    viewed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("user", "product")
+
+    def __str__(self):
+        return f"{self.user.email} viewed {self.product.name}"
