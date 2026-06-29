@@ -61,7 +61,7 @@ urlpatterns = [
     path('api/reviews', include('reviews.urls')),
     path('api/invoices', include('invoices.urls')),
     path('api/dashboard', include('dashboard.urls')),
-    # path('api/returns', include('returns.urls')),
+    path('api/returns', include('returns.urls')),
 ]
 
 if settings.DEBUG:
