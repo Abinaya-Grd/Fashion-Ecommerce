@@ -7,6 +7,7 @@ from .models import ReturnRequest
 from .serializers import ReturnRequestSerializer
 from orders.models import Order, OrderItem
 from accounts.permissions import IsAdminRole
+from notifications.models import Notification
 
 
 def success_response(message, data=None, status_code=status.HTTP_200_OK):
@@ -81,6 +82,13 @@ class ReturnListCreateView(APIView):
             refund_amount=order_item.total_price
         )
 
+        Notification.objects.create(
+            user=request.user,
+            title="Return Requested",
+            message=f"Your return request #{return_request.returnid} has been submitted.",
+            notification_type="return"
+        )
+
         serializer = ReturnRequestSerializer(return_request)
 
         return success_response(
@@ -128,6 +136,13 @@ class CancelReturnView(APIView):
         return_request.status = "cancelled"
         return_request.save()
 
+        Notification.objects.create(
+            user=return_request.user,
+            title="Return Cancelled",
+            message=f"Your return request #{return_request.returnid} has been cancelled.",
+            notification_type="return"
+        )
+
         serializer = ReturnRequestSerializer(return_request)
 
         return success_response(
@@ -153,6 +168,13 @@ class ApproveReturnView(APIView):
         return_request.status = "approved"
         return_request.admin_note = admin_note
         return_request.save()
+
+        Notification.objects.create(
+            user=return_request.user,
+            title="Return Approved",
+            message=f"Your return request #{return_request.returnid} has been approved.",
+            notification_type="return"
+        )
 
         serializer = ReturnRequestSerializer(return_request)
 
@@ -182,6 +204,13 @@ class RejectReturnView(APIView):
         return_request.status = "rejected"
         return_request.admin_note = admin_note
         return_request.save()
+
+        Notification.objects.create(
+            user=return_request.user,
+            title="Return Rejected",
+            message=f"Your return request #{return_request.returnid} has been rejected.",
+            notification_type="return"
+        )
 
         serializer = ReturnRequestSerializer(return_request)
 

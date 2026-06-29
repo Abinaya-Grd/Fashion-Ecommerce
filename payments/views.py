@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-
+from notifications.models import Notification
 from .models import Payment
 from .serializers import PaymentSerializer
 from orders.models import Order
@@ -80,6 +80,13 @@ class CreatePaymentView(APIView):
         order.payment_status = payment_status
         order.order_status = "confirmed"
         order.save()
+        
+        Notification.objects.create(
+           user=order.user,
+           title="Payment Successful",
+           message=f"Payment received for order #{order.orderid}.",
+           notification_type="payment"
+        )
 
         serializer = PaymentSerializer(payment)
 

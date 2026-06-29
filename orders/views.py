@@ -10,6 +10,7 @@ from cart.models import Cart
 from coupons.models import Coupon
 from accounts.models import Address
 from .email_service import send_order_status_email
+from notifications.models import Notification
 
 
 
@@ -135,7 +136,13 @@ class CreateOrderFromCartView(APIView):
             discount_amount=discount_amount,
             final_amount=final_amount
         )
-
+        
+        Notification.objects.create(
+           user=request.user,
+           title="Order Placed",
+           message=f"Your order #{order.orderid} has been placed successfully.",
+           notification_type="order"
+        )
         for item in cart_items:
             price = item.price
             total_price = price * item.quantity
@@ -209,6 +216,8 @@ class OrderDetailView(APIView):
         order.delete()
 
         return success_response("Order deleted successfully")
+    
+    
 
 
 class CancelOrderView(APIView):
@@ -258,20 +267,72 @@ class UpdateOrderStatusView(APIView):
         try:
             order = Order.objects.get(orderid=pk)
         except Order.DoesNotExist:
-            return error_response("Order not found", status.HTTP_404_NOT_FOUND)
+            return error_response(
+                "Order not found",
+                status.HTTP_404_NOT_FOUND
+            )
+
+      
+        status_flow = {
+            "pending": "confirmed",
+            "confirmed": "packed",
+            "packed": "shipped",
+            "shipped": "out_for_delivery",
+            "out_for_delivery": "delivered",
+        }
+
+       
+        if order.order_status == "delivered":
+            return error_response(
+                "Delivered order cannot be updated"
+            )
+
+        
+        if order.order_status == "cancelled":
+            return error_response(
+                "Cancelled order cannot be updated"
+            )
+
+      
+        if new_status == "cancelled":
+            if order.order_status in [
+                "shipped",
+                "out_for_delivery",
+                "delivered"
+            ]:
+                return error_response(
+                    "Order cannot be cancelled after shipping"
+                )
+        else:
+            expected_status = status_flow.get(order.order_status)
+
+            if expected_status != new_status:
+                return error_response(
+                    f"Invalid status transition. "
+                    f"Order can move only from "
+                    f"{order.order_status} to {expected_status}"
+                )
 
         order.order_status = new_status
 
-        if new_status == "delivered" and order.payment_status == "pending":
+   
+        if (
+            new_status == "delivered"
+            and order.payment_status == "pending"
+        ):
             order.payment_status = "paid"
 
         order.save()
-
-        print("Reached email section")
+        
+        Notification.objects.create(
+          user=order.user,
+          title="Order Status Updated",
+          message=f"Your order #{order.orderid} is now {order.order_status.replace('_', ' ').title()}.",
+          notification_type="order"
+        )
 
         try:
             send_order_status_email(order)
-            print("Email sent successfully")
         except Exception as e:
             print("Email Error:", e)
 
