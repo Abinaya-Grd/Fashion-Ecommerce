@@ -1,17 +1,18 @@
 from decimal import Decimal
+
+from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from django.db import transaction
+
 from .models import Order, OrderItem
 from .serializers import OrderSerializer
 from cart.models import Cart
 from coupons.models import Coupon
 from accounts.models import Address
-from .email_service import send_order_status_email
 from notifications.models import Notification
-
+from .email_service import send_order_status_email
 
 
 def success_response(message, data=None, status_code=status.HTTP_200_OK):
@@ -28,6 +29,7 @@ def error_response(message, status_code=status.HTTP_400_BAD_REQUEST):
         "message": message
     }, status=status_code)
 
+
 class CreateOrderFromCartView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -38,15 +40,9 @@ class CreateOrderFromCartView(APIView):
 
         if address_id:
             try:
-                address = Address.objects.get(
-                    id=address_id,
-                    user=request.user
-                )
+                address = Address.objects.get(id=address_id, user=request.user)
             except Address.DoesNotExist:
-                return error_response(
-                    "Address not found",
-                    status.HTTP_404_NOT_FOUND
-                )
+                return error_response("Address not found", status.HTTP_404_NOT_FOUND)
         else:
             address = Address.objects.filter(
                 user=request.user,
@@ -54,9 +50,7 @@ class CreateOrderFromCartView(APIView):
             ).first()
 
             if not address:
-                return error_response(
-                    "Please add or select a shipping address"
-                )
+                return error_response("Please add or select a shipping address")
 
         shipping_address = (
             f"{address.full_name}, "
@@ -66,8 +60,6 @@ class CreateOrderFromCartView(APIView):
             f"{address.state} - {address.pincode}, "
             f"{address.country}"
         )
-
-        phone = address.phone
 
         try:
             cart = Cart.objects.get(user=request.user)
@@ -84,9 +76,7 @@ class CreateOrderFromCartView(APIView):
         coupon = None
 
         for item in cart_items:
-            price = item.price
-            total_price = price * item.quantity
-            total_amount += total_price
+            total_amount += item.price * item.quantity
 
             if item.variant and item.variant.product != item.product:
                 return error_response(
@@ -108,9 +98,7 @@ class CreateOrderFromCartView(APIView):
                 return error_response("Invalid coupon code")
 
             if not coupon.is_valid_coupon():
-                return error_response(
-                    "Coupon expired, inactive or limit reached"
-                )
+                return error_response("Coupon expired, inactive or limit reached")
 
             if total_amount < coupon.min_order_amount:
                 return error_response(
@@ -130,30 +118,28 @@ class CreateOrderFromCartView(APIView):
         order = Order.objects.create(
             user=request.user,
             shipping_address=shipping_address,
-            phone=phone,
+            phone=address.phone,
             total_amount=total_amount,
             coupon=coupon,
             discount_amount=discount_amount,
             final_amount=final_amount
         )
-        
-        Notification.objects.create(
-           user=request.user,
-           title="Order Placed",
-           message=f"Your order #{order.orderid} has been placed successfully.",
-           notification_type="order"
-        )
-        for item in cart_items:
-            price = item.price
-            total_price = price * item.quantity
 
+        Notification.objects.create(
+            user=request.user,
+            title="Order Placed",
+            message=f"Your order #{order.orderid} has been placed successfully.",
+            notification_type="order"
+        )
+
+        for item in cart_items:
             OrderItem.objects.create(
                 order=order,
                 product=item.product,
                 variant=item.variant,
                 quantity=item.quantity,
-                price=price,
-                total_price=total_price
+                price=item.price,
+                total_price=item.price * item.quantity
             )
 
             if item.variant:
@@ -173,11 +159,17 @@ class CreateOrderFromCartView(APIView):
             serializer.data,
             status.HTTP_201_CREATED
         )
+
+
 class MyOrdersView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        orders = Order.objects.filter(user=request.user).order_by('-orderid')
+        if request.user.role == "admin":
+            orders = Order.objects.all().order_by("-orderid")
+        else:
+            orders = Order.objects.filter(user=request.user).order_by("-orderid")
+
         serializer = OrderSerializer(orders, many=True)
 
         return success_response(
@@ -189,9 +181,15 @@ class MyOrdersView(APIView):
 class OrderDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get_order(self, request, pk):
+        if request.user.role == "admin":
+            return Order.objects.get(orderid=pk)
+
+        return Order.objects.get(orderid=pk, user=request.user)
+
     def get(self, request, pk):
         try:
-            order = Order.objects.get(orderid=pk, user=request.user)
+            order = self.get_order(request, pk)
         except Order.DoesNotExist:
             return error_response("Order not found", status.HTTP_404_NOT_FOUND)
 
@@ -204,7 +202,7 @@ class OrderDetailView(APIView):
 
     def delete(self, request, pk):
         try:
-            order = Order.objects.get(orderid=pk, user=request.user)
+            order = self.get_order(request, pk)
         except Order.DoesNotExist:
             return error_response("Order not found", status.HTTP_404_NOT_FOUND)
 
@@ -216,8 +214,6 @@ class OrderDetailView(APIView):
         order.delete()
 
         return success_response("Order deleted successfully")
-    
-    
 
 
 class CancelOrderView(APIView):
@@ -225,11 +221,14 @@ class CancelOrderView(APIView):
 
     def put(self, request, pk):
         try:
-            order = Order.objects.get(orderid=pk, user=request.user)
+            if request.user.role == "admin":
+                order = Order.objects.get(orderid=pk)
+            else:
+                order = Order.objects.get(orderid=pk, user=request.user)
         except Order.DoesNotExist:
             return error_response("Order not found", status.HTTP_404_NOT_FOUND)
 
-        if order.order_status in ["shipped", "delivered"]:
+        if order.order_status in ["shipped", "out_for_delivery", "delivered"]:
             return error_response("Order cannot be cancelled after shipping")
 
         if order.order_status == "cancelled":
@@ -238,17 +237,31 @@ class CancelOrderView(APIView):
         order.order_status = "cancelled"
         order.save()
 
+        Notification.objects.create(
+            user=order.user,
+            title="Order Cancelled",
+            message=f"Your order #{order.orderid} has been cancelled.",
+            notification_type="order"
+        )
+
         serializer = OrderSerializer(order)
 
         return success_response(
             "Order cancelled successfully",
             serializer.data
         )
-        
+
+
 class UpdateOrderStatusView(APIView):
     permission_classes = [IsAuthenticated]
 
     def put(self, request, pk):
+        if request.user.role != "admin":
+            return error_response(
+                "Only admin can update order status",
+                status.HTTP_403_FORBIDDEN
+            )
+
         new_status = request.data.get("order_status")
 
         allowed_status = [
@@ -267,12 +280,8 @@ class UpdateOrderStatusView(APIView):
         try:
             order = Order.objects.get(orderid=pk)
         except Order.DoesNotExist:
-            return error_response(
-                "Order not found",
-                status.HTTP_404_NOT_FOUND
-            )
+            return error_response("Order not found", status.HTTP_404_NOT_FOUND)
 
-      
         status_flow = {
             "pending": "confirmed",
             "confirmed": "packed",
@@ -281,54 +290,36 @@ class UpdateOrderStatusView(APIView):
             "out_for_delivery": "delivered",
         }
 
-       
         if order.order_status == "delivered":
-            return error_response(
-                "Delivered order cannot be updated"
-            )
+            return error_response("Delivered order cannot be updated")
 
-        
         if order.order_status == "cancelled":
-            return error_response(
-                "Cancelled order cannot be updated"
-            )
+            return error_response("Cancelled order cannot be updated")
 
-      
         if new_status == "cancelled":
-            if order.order_status in [
-                "shipped",
-                "out_for_delivery",
-                "delivered"
-            ]:
-                return error_response(
-                    "Order cannot be cancelled after shipping"
-                )
+            if order.order_status in ["shipped", "out_for_delivery", "delivered"]:
+                return error_response("Order cannot be cancelled after shipping")
         else:
             expected_status = status_flow.get(order.order_status)
 
             if expected_status != new_status:
                 return error_response(
                     f"Invalid status transition. "
-                    f"Order can move only from "
-                    f"{order.order_status} to {expected_status}"
+                    f"Order can move only from {order.order_status} to {expected_status}"
                 )
 
         order.order_status = new_status
 
-   
-        if (
-            new_status == "delivered"
-            and order.payment_status == "pending"
-        ):
+        if new_status == "delivered" and order.payment_status == "pending":
             order.payment_status = "paid"
 
         order.save()
-        
+
         Notification.objects.create(
-          user=order.user,
-          title="Order Status Updated",
-          message=f"Your order #{order.orderid} is now {order.order_status.replace('_', ' ').title()}.",
-          notification_type="order"
+            user=order.user,
+            title="Order Status Updated",
+            message=f"Your order #{order.orderid} is now {order.order_status.replace('_', ' ').title()}.",
+            notification_type="order"
         )
 
         try:
@@ -343,51 +334,47 @@ class UpdateOrderStatusView(APIView):
             serializer.data
         )
 
+
 class OrderTrackingView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
         try:
-            order = Order.objects.get(orderid=pk, user=request.user)
+            if request.user.role == "admin":
+                order = Order.objects.get(orderid=pk)
+            else:
+                order = Order.objects.get(orderid=pk, user=request.user)
         except Order.DoesNotExist:
             return error_response("Order not found", status.HTTP_404_NOT_FOUND)
 
         if order.order_status == "cancelled":
-            return success_response(
-                "Order tracking fetched successfully",
+            tracking = [
                 {
-                    "order_id": order.orderid,
-                    "order_status": order.order_status,
-                    "payment_status": order.payment_status,
-                    "tracking": [
-                        {
-                            "status": "cancelled",
-                            "completed": True,
-                            "current": True
-                        }
-                    ]
+                    "status": "cancelled",
+                    "completed": True,
+                    "current": True
                 }
-            )
+            ]
+        else:
+            tracking_steps = [
+                "pending",
+                "confirmed",
+                "packed",
+                "shipped",
+                "out_for_delivery",
+                "delivered",
+            ]
 
-        tracking_steps = [
-            "pending",
-            "confirmed",
-            "packed",
-            "shipped",
-            "out_for_delivery",
-            "delivered",
-        ]
+            current_index = tracking_steps.index(order.order_status)
 
-        current_index = tracking_steps.index(order.order_status)
+            tracking = []
 
-        tracking = []
-
-        for index, step in enumerate(tracking_steps):
-            tracking.append({
-                "status": step,
-                "completed": index <= current_index,
-                "current": index == current_index
-            })
+            for index, step in enumerate(tracking_steps):
+                tracking.append({
+                    "status": step,
+                    "completed": index <= current_index,
+                    "current": index == current_index
+                })
 
         return success_response(
             "Order tracking fetched successfully",

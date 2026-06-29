@@ -64,6 +64,7 @@ urlpatterns = [
     path('api/returns', include('returns.urls')),
     path('api/notifications', include('notifications.urls')),
     path('api/wallet', include('wallet.urls')),
+    path('api/reports', include('reports.urls')),
 ]
 
 if settings.DEBUG:
