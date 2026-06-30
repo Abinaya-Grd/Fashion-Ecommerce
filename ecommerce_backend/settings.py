@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'reports',
     'invoices',
     'inventory',
+    'suppliers',
     'banners',
     'dashboard',
 ]
