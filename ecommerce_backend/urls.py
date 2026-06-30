@@ -50,7 +50,7 @@ urlpatterns = [
     path('api/brands', BrandListCreateView.as_view()),
     path('api/brands/<int:pk>', BrandDetailView.as_view()),
 
-    # Products
+
     path('api/products', include('products.urls')),
 
     path('api/cart', include('cart.urls')),
@@ -73,14 +73,4 @@ if settings.DEBUG:
         settings.MEDIA_URL,
         document_root=settings.MEDIA_ROOT
     )
-#     path('api/categories/', include('categories.urls')),
-#     path('api/products/', include('products.urls')),
-#     path('api/cart/', include('cart.urls')),
-#     path('api/wishlist/', include('wishlist.urls')),
-#     path('api/orders/', include('orders.urls')),
-#     path('api/payments/', include('payments.urls')),
-#     path('api/coupons/', include('coupons.urls')),
-#     path('api/reviews/', include('reviews.urls')),
-#     
-#     path('api/dashboard/', include('dashboard.urls')),
-# ]
+
