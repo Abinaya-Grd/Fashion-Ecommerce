@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'wallet',
     'reports',
     'invoices',
+    'inventory',
     'banners',
     'dashboard',
 ]
