@@ -65,6 +65,7 @@ urlpatterns = [
     path('api/notifications', include('notifications.urls')),
     path('api/wallet', include('wallet.urls')),
     path('api/reports', include('reports.urls')),
+    path('api/banners', include('banners.urls')),
 ]
 
 if settings.DEBUG:
@@ -80,6 +81,6 @@ if settings.DEBUG:
 #     path('api/payments/', include('payments.urls')),
 #     path('api/coupons/', include('coupons.urls')),
 #     path('api/reviews/', include('reviews.urls')),
-#     path('api/banners/', include('banners.urls')),
+#     
 #     path('api/dashboard/', include('dashboard.urls')),
 # ]
