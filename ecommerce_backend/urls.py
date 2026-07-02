@@ -69,6 +69,7 @@ urlpatterns = [
     path('api/inventory',include('inventory.urls')),
     path('api/suppliers', include('suppliers.urls')),
     path('api/purchases', include('purchases.urls')),
+    path("api/purchase-returns", include("purchase_returns.urls")),
 ]
 
 if settings.DEBUG:
