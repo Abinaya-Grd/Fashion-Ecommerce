@@ -7,6 +7,9 @@ from .views import (
     ProductsReportView,
     CustomersReportView,
     RevenueReportView,
+    ExportOrdersCSVView,
+    ExportProductsCSVView,
+    ExportSalesCSVView,
 )
 
 urlpatterns = [
@@ -16,4 +19,8 @@ urlpatterns = [
     path('/products', ProductsReportView.as_view()),
     path('/customers', CustomersReportView.as_view()),
     path('/revenue', RevenueReportView.as_view()),
+
+    path('/export/orders-csv', ExportOrdersCSVView.as_view()),
+    path('/export/products-csv', ExportProductsCSVView.as_view()),
+    path('/export/sales-csv', ExportSalesCSVView.as_view()),
 ]

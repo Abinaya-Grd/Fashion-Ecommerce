@@ -11,6 +11,8 @@ from accounts.models import CustomUser
 from products.models import Product, ProductVariant
 from orders.models import Order, OrderItem
 from payments.models import Payment
+import csv
+from django.http import HttpResponse
 
 
 def success_response(message, data=None, status_code=status.HTTP_200_OK):
@@ -217,3 +219,113 @@ class RevenueReportView(APIView):
             "Revenue report fetched successfully",
             data
         )
+        
+class ExportOrdersCSVView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def get(self, request):
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="orders_report.csv"'
+
+        writer = csv.writer(response)
+
+        writer.writerow([
+            "Order ID",
+            "Customer Email",
+            "Total Amount",
+            "Discount Amount",
+            "Final Amount",
+            "Order Status",
+            "Payment Status",
+            "Phone",
+            "Created At",
+        ])
+
+        orders = Order.objects.all().order_by("-orderid")
+
+        for order in orders:
+            writer.writerow([
+                order.orderid,
+                order.user.email,
+                order.total_amount,
+                order.discount_amount,
+                order.final_amount,
+                order.order_status,
+                order.payment_status,
+                order.phone,
+                order.created_at,
+            ])
+
+        return response
+
+
+class ExportProductsCSVView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def get(self, request):
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="products_report.csv"'
+
+        writer = csv.writer(response)
+
+        writer.writerow([
+            "Product ID",
+            "Product Name",
+            "SKU",
+            "Price",
+            "Offer Price",
+            "Stock",
+            "Status",
+            "Created At",
+        ])
+
+        products = Product.objects.all().order_by("-productid")
+
+        for product in products:
+            writer.writerow([
+                product.productid,
+                product.name,
+                product.sku,
+                product.price,
+                product.offer_price,
+                product.stock,
+                product.status,
+                product.created_at,
+            ])
+
+        return response
+
+
+class ExportSalesCSVView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def get(self, request):
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="sales_report.csv"'
+
+        writer = csv.writer(response)
+
+        writer.writerow([
+            "Order ID",
+            "Customer Email",
+            "Final Amount",
+            "Order Status",
+            "Payment Status",
+            "Created At",
+        ])
+
+        orders = Order.objects.filter(
+            payment_status="paid"
+        ).order_by("-orderid")
+
+        for order in orders:
+            writer.writerow([
+                order.orderid,
+                order.user.email,
+                order.final_amount,
+                order.order_status,
+                order.payment_status,
+                order.created_at,
+            ])
+
+        return response

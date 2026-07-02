@@ -1,6 +1,6 @@
 from pathlib import Path
 from datetime import timedelta
-# from decouple import config
+from decouple import config
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
@@ -9,9 +9,9 @@ SIMPLE_JWT = {
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure--kvbo6ispi1c#v8ldljml*633j4&(9y7t5!wp3lmqddi4$8_$6'
+SECRET_KEY = config("SECRET_KEY")
 
-DEBUG = True
+DEBUG = config("DEBUG", default=True, cast=bool)
 
 ALLOWED_HOSTS = []
 
@@ -49,6 +49,8 @@ INSTALLED_APPS = [
     'banners',
     'dashboard',
     'purchase_returns',
+    "drf_yasg",
+
 ]
 
 
@@ -89,11 +91,11 @@ WSGI_APPLICATION = 'ecommerce_backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'myproject_db',
-        'USER': 'root',
-        'PASSWORD': '1234',
-        'HOST': 'localhost',
-        'PORT': '3306',
+        'NAME': config("DB_NAME"),
+        'USER': config("DB_USER"),
+        'PASSWORD': config("DB_PASSWORD"),
+        'HOST': config("DB_HOST"),
+        'PORT': config("DB_PORT"),
     }
 }
 
@@ -117,12 +119,14 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
-}
 
+    'EXCEPTION_HANDLER': 'ecommerce_backend.exception_handler.custom_exception_handler',
+}
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
@@ -144,21 +148,19 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-RAZORPAY_KEY_ID = "rzp_test_T3N8Yp0abzZp21"
-RAZORPAY_KEY_SECRET = "dX1Cb32bwYR8nREn3EwZ5eyX"
+RAZORPAY_KEY_ID = config("RAZORPAY_KEY_ID")
+RAZORPAY_KEY_SECRET = config("RAZORPAY_KEY_SECRET")
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-DEFAULT_FROM_EMAIL = 'noreply@fashionecommerce.com'
-
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
+EMAIL_HOST = config("EMAIL_HOST")
+EMAIL_PORT = config("EMAIL_PORT", cast=int)
 EMAIL_USE_TLS = True
 
-EMAIL_HOST_USER = 'mounttowntech@gmail.com'
-EMAIL_HOST_PASSWORD = 'pcoa zpyh nzvd pwml'
+EMAIL_HOST_USER = config("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
