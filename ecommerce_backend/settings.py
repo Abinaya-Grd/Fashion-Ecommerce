@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'purchases',
     'banners',
     'dashboard',
+    'purchase_returns',
 ]
 
 
