@@ -1,0 +1,49 @@
+INFO 2026-07-03 10:41:49,093 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 10:53:01,855 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\accounts\views.py changed, reloading.
+INFO 2026-07-03 10:53:03,655 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 10:53:08,611 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\accounts\views.py changed, reloading.
+INFO 2026-07-03 10:53:09,570 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 10:53:12,366 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\accounts\views.py changed, reloading.
+INFO 2026-07-03 10:53:13,333 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 10:54:30,295 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\accounts\views.py changed, reloading.
+INFO 2026-07-03 10:54:31,438 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 10:54:35,616 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\accounts\views.py changed, reloading.
+INFO 2026-07-03 10:54:36,657 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 10:54:41,636 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\accounts\views.py changed, reloading.
+INFO 2026-07-03 10:54:43,360 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 10:54:46,194 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\accounts\views.py changed, reloading.
+INFO 2026-07-03 10:54:47,139 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 10:55:11,155 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\accounts\views.py changed, reloading.
+INFO 2026-07-03 10:55:12,025 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 10:55:17,529 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\accounts\views.py changed, reloading.
+INFO 2026-07-03 10:55:18,560 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 10:55:28,476 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\accounts\views.py changed, reloading.
+INFO 2026-07-03 10:55:29,426 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 10:55:32,676 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\accounts\views.py changed, reloading.
+INFO 2026-07-03 10:55:33,657 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 10:55:37,164 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\accounts\views.py changed, reloading.
+INFO 2026-07-03 10:55:38,903 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 10:55:41,855 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\accounts\views.py changed, reloading.
+INFO 2026-07-03 10:55:42,872 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 10:55:54,786 log "POST /api/accounts/login HTTP/1.1" 200 679
+INFO 2026-07-03 11:44:05,139 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\accounts\views.py changed, reloading.
+INFO 2026-07-03 11:44:07,472 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 11:44:20,467 views User logged in successfully: abinayamanokaran2006@gmail.com
+INFO 2026-07-03 11:44:20,496 log "POST /api/accounts/login HTTP/1.1" 200 679
+INFO 2026-07-03 11:53:51,484 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\orders\views.py changed, reloading.
+INFO 2026-07-03 11:53:52,736 autoreload Watching for file changes with StatReloader
+WARNING 2026-07-03 11:59:18,021 log Not Found: /
+WARNING 2026-07-03 11:59:18,022 log "GET / HTTP/1.1" 404 6954
+WARNING 2026-07-03 11:59:18,252 log Not Found: /favicon.ico
+WARNING 2026-07-03 11:59:18,252 log "GET /favicon.ico HTTP/1.1" 404 7005
+INFO 2026-07-03 12:13:36,699 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 12:31:44,900 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\orders\views.py changed, reloading.
+INFO 2026-07-03 12:31:46,614 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 12:48:22,886 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\orders\views.py changed, reloading.
+INFO 2026-07-03 12:48:23,992 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 12:49:03,262 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\orders\urls.py changed, reloading.
+INFO 2026-07-03 12:49:04,283 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 12:49:12,654 autoreload C:\Users\User13\Desktop\Ecommerce\ecommerce_backend\orders\urls.py changed, reloading.
+INFO 2026-07-03 12:49:13,736 autoreload Watching for file changes with StatReloader
+INFO 2026-07-03 13:00:59,682 views Product created | ID=13 | Name=simmer leggines
+INFO 2026-07-03 13:00:59,714 log "POST /api/products HTTP/1.1" 201 1453

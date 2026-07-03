@@ -1,17 +1,19 @@
+import logging
+from datetime import timedelta
+
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
+from django.core.paginator import Paginator
+from django.utils import timezone
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.core.paginator import Paginator
-from django.db.models import Sum
-from orders.models import OrderItem
-from django.utils import timezone
-from datetime import timedelta
 from rest_framework.permissions import IsAuthenticated
-from .models import RecentlyViewedProduct
-from .models import Product, ProductImage, Color, Size, ProductVariant
+
+from orders.models import OrderItem
+from .models import Product, ProductImage, Color, Size, ProductVariant, RecentlyViewedProduct
 from .serializers import (
     ProductSerializer,
     ProductImageSerializer,
@@ -19,6 +21,8 @@ from .serializers import (
     SizeSerializer,
     ProductVariantSerializer,
 )
+
+logger = logging.getLogger("ecommerce")
 
 
 def success_response(message, data=None, status_code=status.HTTP_200_OK):
@@ -38,17 +42,20 @@ def error_response(message, status_code=status.HTTP_400_BAD_REQUEST):
 
 class ProductListCreateView(APIView):
     def get(self, request):
-        search = request.query_params.get('search')
-        category_id = request.query_params.get('category_id')
-        subcategory_id = request.query_params.get('subcategory_id')
-        product_style_id = request.query_params.get('product_style_id')
-        brand_id = request.query_params.get('brand_id')
-        min_price = request.query_params.get('min_price')
-        max_price = request.query_params.get('max_price')
-        in_stock = request.query_params.get('in_stock')
-        sort_by = request.query_params.get('sort_by')
+        search = request.query_params.get("search")
+        category_id = request.query_params.get("category_id")
+        subcategory_id = request.query_params.get("subcategory_id")
+        product_style_id = request.query_params.get("product_style_id")
+        brand_id = request.query_params.get("brand_id")
+        color_id = request.query_params.get("color_id")
+        size_id = request.query_params.get("size_id")
+        min_price = request.query_params.get("min_price")
+        max_price = request.query_params.get("max_price")
+        in_stock = request.query_params.get("in_stock")
+        offer = request.query_params.get("offer")
+        sort_by = request.query_params.get("sort_by")
 
-        products = Product.objects.filter(status='active').order_by('-productid')
+        products = Product.objects.filter(status="active").order_by("-productid")
 
         if search:
             products = products.filter(
@@ -72,6 +79,12 @@ class ProductListCreateView(APIView):
         if brand_id:
             products = products.filter(brand_id=brand_id)
 
+        if color_id:
+            products = products.filter(variants__color_id=color_id)
+
+        if size_id:
+            products = products.filter(variants__size_id=size_id)
+
         if min_price:
             products = products.filter(price__gte=min_price)
 
@@ -84,6 +97,11 @@ class ProductListCreateView(APIView):
         if in_stock == "false":
             products = products.filter(is_in_stock=False)
 
+        if offer == "true":
+            products = products.filter(offer_price__isnull=False)
+
+        products = products.distinct()
+
         if sort_by == "price_low_high":
             products = products.order_by("price")
         elif sort_by == "price_high_low":
@@ -92,6 +110,10 @@ class ProductListCreateView(APIView):
             products = products.order_by("-created_at")
         elif sort_by == "oldest":
             products = products.order_by("created_at")
+        elif sort_by == "name_asc":
+            products = products.order_by("name")
+        elif sort_by == "name_desc":
+            products = products.order_by("-name")
 
         page_number = request.query_params.get("page", 1)
         page_size = int(request.query_params.get("page_size", 10))
@@ -116,7 +138,11 @@ class ProductListCreateView(APIView):
         serializer = ProductSerializer(data=request.data)
 
         if serializer.is_valid():
-            serializer.save()
+            product = serializer.save()
+
+            logger.info(
+                f"Product created | ID={product.productid} | Name={product.name}"
+            )
 
             return success_response(
                 "Product created successfully",
@@ -124,19 +150,7 @@ class ProductListCreateView(APIView):
                 status.HTTP_201_CREATED
             )
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    def post(self, request):
-        serializer = ProductSerializer(data=request.data)
-
-        if serializer.is_valid():
-            serializer.save()
-
-            return success_response(
-                "Product created successfully",
-                serializer.data,
-                status.HTTP_201_CREATED
-            )
-
+        logger.warning(f"Product creation failed | Errors={serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -161,6 +175,9 @@ class ProductFullCreateView(APIView):
         product_serializer = ProductSerializer(data=product_data)
 
         if not product_serializer.is_valid():
+            logger.warning(
+                f"Full product creation failed | Errors={product_serializer.errors}"
+            )
             return Response(
                 product_serializer.errors,
                 status=status.HTTP_400_BAD_REQUEST
@@ -168,8 +185,11 @@ class ProductFullCreateView(APIView):
 
         product = product_serializer.save()
 
-        images = request.FILES.getlist("images")
+        logger.info(
+            f"Full product created | ID={product.productid} | Name={product.name}"
+        )
 
+        images = request.FILES.getlist("images")
         uploaded_images = []
 
         for image in images:
@@ -178,6 +198,11 @@ class ProductFullCreateView(APIView):
                 image=image,
                 is_primary=False
             )
+
+            logger.info(
+                f"Product image uploaded | ProductID={product.productid} | Image={product_image.image.name}"
+            )
+
             uploaded_images.append(
                 ProductImageSerializer(product_image).data
             )
@@ -195,8 +220,9 @@ class ProductFullCreateView(APIView):
 class ProductDetailView(APIView):
     def get(self, request, pk):
         try:
-            product = Product.objects.get(pk=pk)
+            product = Product.objects.get(productid=pk)
         except Product.DoesNotExist:
+            logger.warning(f"Product fetch failed | ProductID={pk}")
             return error_response("Product not found", status.HTTP_404_NOT_FOUND)
 
         serializer = ProductSerializer(product)
@@ -208,8 +234,9 @@ class ProductDetailView(APIView):
 
     def put(self, request, pk):
         try:
-            product = Product.objects.get(pk=pk)
+            product = Product.objects.get(productid=pk)
         except Product.DoesNotExist:
+            logger.warning(f"Product update failed | ProductID={pk}")
             return error_response("Product not found", status.HTTP_404_NOT_FOUND)
 
         serializer = ProductSerializer(
@@ -219,20 +246,32 @@ class ProductDetailView(APIView):
         )
 
         if serializer.is_valid():
-            serializer.save()
+            product = serializer.save()
+
+            logger.info(
+                f"Product updated | ID={product.productid} | Name={product.name}"
+            )
 
             return success_response(
                 "Product updated successfully",
                 serializer.data
             )
 
+        logger.warning(
+            f"Product update validation failed | ProductID={pk} | Errors={serializer.errors}"
+        )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         try:
-            product = Product.objects.get(pk=pk)
+            product = Product.objects.get(productid=pk)
         except Product.DoesNotExist:
+            logger.warning(f"Product delete failed | ProductID={pk}")
             return error_response("Product not found", status.HTTP_404_NOT_FOUND)
+
+        logger.info(
+            f"Product deleted | ID={product.productid} | Name={product.name}"
+        )
 
         product.delete()
 
@@ -243,9 +282,9 @@ class ProductImageListCreateView(APIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def get(self, request):
-        product_id = request.query_params.get('product_id')
+        product_id = request.query_params.get("product_id")
 
-        images = ProductImage.objects.all().order_by('-imageid')
+        images = ProductImage.objects.all().order_by("-imageid")
 
         if product_id:
             images = images.filter(product_id=product_id)
@@ -258,28 +297,38 @@ class ProductImageListCreateView(APIView):
         )
 
     def post(self, request):
-        product_id = request.data.get('product')
-        images = request.FILES.getlist('images')
+        product_id = request.data.get("product")
+        images = request.FILES.getlist("images")
 
         if not product_id:
+            logger.warning("Product image upload failed | Product missing")
             return error_response("Product is required")
 
         if not images:
+            logger.warning(f"Product image upload failed | ProductID={product_id} | No images")
             return error_response("At least one image is required")
 
         uploaded_images = []
 
         for image in images:
             serializer = ProductImageSerializer(data={
-                'product': product_id,
-                'image': image,
-                'is_primary': False
+                "product": product_id,
+                "image": image,
+                "is_primary": False
             })
 
             if serializer.is_valid():
-                serializer.save()
+                product_image = serializer.save()
+
+                logger.info(
+                    f"Product image uploaded | ProductID={product_id} | ImageID={product_image.imageid}"
+                )
+
                 uploaded_images.append(serializer.data)
             else:
+                logger.warning(
+                    f"Product image upload failed | ProductID={product_id} | Errors={serializer.errors}"
+                )
                 return Response(
                     serializer.errors,
                     status=status.HTTP_400_BAD_REQUEST
@@ -297,8 +346,9 @@ class ProductImageDetailView(APIView):
 
     def put(self, request, pk):
         try:
-            image = ProductImage.objects.get(pk=pk)
+            image = ProductImage.objects.get(imageid=pk)
         except ProductImage.DoesNotExist:
+            logger.warning(f"Product image update failed | ImageID={pk}")
             return error_response(
                 "Product image not found",
                 status.HTTP_404_NOT_FOUND
@@ -311,23 +361,35 @@ class ProductImageDetailView(APIView):
         )
 
         if serializer.is_valid():
-            serializer.save()
+            product_image = serializer.save()
+
+            logger.info(
+                f"Product image updated | ImageID={product_image.imageid} | ProductID={product_image.product.productid}"
+            )
 
             return success_response(
                 "Product image updated successfully",
                 serializer.data
             )
 
+        logger.warning(
+            f"Product image update validation failed | ImageID={pk} | Errors={serializer.errors}"
+        )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         try:
-            image = ProductImage.objects.get(pk=pk)
+            image = ProductImage.objects.get(imageid=pk)
         except ProductImage.DoesNotExist:
+            logger.warning(f"Product image delete failed | ImageID={pk}")
             return error_response(
                 "Product image not found",
                 status.HTTP_404_NOT_FOUND
             )
+
+        logger.info(
+            f"Product image deleted | ImageID={image.imageid} | ProductID={image.product.productid}"
+        )
 
         image.delete()
 
@@ -336,7 +398,7 @@ class ProductImageDetailView(APIView):
 
 class ColorListCreateView(APIView):
     def get(self, request):
-        colors = Color.objects.all().order_by('-colorid')
+        colors = Color.objects.all().order_by("-colorid")
         serializer = ColorSerializer(colors, many=True)
         return success_response("Colors fetched successfully", serializer.data)
 
@@ -344,19 +406,25 @@ class ColorListCreateView(APIView):
         serializer = ColorSerializer(data=request.data)
 
         if serializer.is_valid():
-            serializer.save()
+            color = serializer.save()
+
+            logger.info(
+                f"Color created | ID={color.colorid} | Name={color.name}"
+            )
+
             return success_response(
                 "Color created successfully",
                 serializer.data,
                 status.HTTP_201_CREATED
             )
 
+        logger.warning(f"Color creation failed | Errors={serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class SizeListCreateView(APIView):
     def get(self, request):
-        sizes = Size.objects.all().order_by('-sizeid')
+        sizes = Size.objects.all().order_by("-sizeid")
         serializer = SizeSerializer(sizes, many=True)
         return success_response("Sizes fetched successfully", serializer.data)
 
@@ -364,23 +432,29 @@ class SizeListCreateView(APIView):
         serializer = SizeSerializer(data=request.data)
 
         if serializer.is_valid():
-            serializer.save()
+            size = serializer.save()
+
+            logger.info(
+                f"Size created | ID={size.sizeid} | Name={size.name}"
+            )
+
             return success_response(
                 "Size created successfully",
                 serializer.data,
                 status.HTTP_201_CREATED
             )
 
+        logger.warning(f"Size creation failed | Errors={serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ProductVariantListCreateView(APIView):
     def get(self, request):
-        product_id = request.query_params.get('product_id')
-        color_id = request.query_params.get('color_id')
-        size_id = request.query_params.get('size_id')
+        product_id = request.query_params.get("product_id")
+        color_id = request.query_params.get("color_id")
+        size_id = request.query_params.get("size_id")
 
-        variants = ProductVariant.objects.all().order_by('-variantid')
+        variants = ProductVariant.objects.all().order_by("-variantid")
 
         if product_id:
             variants = variants.filter(product_id=product_id)
@@ -402,7 +476,11 @@ class ProductVariantListCreateView(APIView):
         serializer = ProductVariantSerializer(data=request.data)
 
         if serializer.is_valid():
-            serializer.save()
+            variant = serializer.save()
+
+            logger.info(
+                f"Variant created | VariantID={variant.variantid} | ProductID={variant.product.productid} | SKU={variant.sku}"
+            )
 
             return success_response(
                 "Product variant created successfully",
@@ -410,8 +488,10 @@ class ProductVariantListCreateView(APIView):
                 status.HTTP_201_CREATED
             )
 
+        logger.warning(f"Variant creation failed | Errors={serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
+
 class RelatedProductsView(APIView):
     def get(self, request, pk):
         try:
@@ -481,8 +561,9 @@ class BestSellerProductsView(APIView):
         return success_response(
             "Best seller products fetched successfully",
             serializer.data
-        )    
-        
+        )
+
+
 class AddRecentlyViewedView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -495,6 +576,10 @@ class AddRecentlyViewedView(APIView):
         RecentlyViewedProduct.objects.update_or_create(
             user=request.user,
             product=product
+        )
+
+        logger.info(
+            f"Recently viewed added | User={request.user.email} | ProductID={product.productid}"
         )
 
         return success_response("Product added to recently viewed")
@@ -592,4 +677,4 @@ class TrendingProductsView(APIView):
         return success_response(
             "Trending products fetched successfully",
             serializer.data
-        )    
+        )

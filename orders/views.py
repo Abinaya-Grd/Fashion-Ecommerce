@@ -1,6 +1,10 @@
+import logging
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Q, Sum
+from django.core.paginator import Paginator
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -13,6 +17,8 @@ from coupons.models import Coupon
 from accounts.models import Address
 from notifications.models import Notification
 from .email_service import send_order_status_email
+
+logger = logging.getLogger("ecommerce")
 
 
 def success_response(message, data=None, status_code=status.HTTP_200_OK):
@@ -30,6 +36,12 @@ def error_response(message, status_code=status.HTTP_400_BAD_REQUEST):
     }, status=status_code)
 
 
+def get_order_queryset(request):
+    if request.user.role == "admin":
+        return Order.objects.all().order_by("-orderid")
+    return Order.objects.filter(user=request.user).order_by("-orderid")
+
+
 class CreateOrderFromCartView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -44,21 +56,14 @@ class CreateOrderFromCartView(APIView):
             except Address.DoesNotExist:
                 return error_response("Address not found", status.HTTP_404_NOT_FOUND)
         else:
-            address = Address.objects.filter(
-                user=request.user,
-                is_default=True
-            ).first()
-
+            address = Address.objects.filter(user=request.user, is_default=True).first()
             if not address:
                 return error_response("Please add or select a shipping address")
 
         shipping_address = (
-            f"{address.full_name}, "
-            f"{address.address_line_1}, "
-            f"{address.address_line_2 or ''}, "
-            f"{address.city}, "
-            f"{address.state} - {address.pincode}, "
-            f"{address.country}"
+            f"{address.full_name}, {address.address_line_1}, "
+            f"{address.address_line_2 or ''}, {address.city}, "
+            f"{address.state} - {address.pincode}, {address.country}"
         )
 
         try:
@@ -66,7 +71,7 @@ class CreateOrderFromCartView(APIView):
         except Cart.DoesNotExist:
             return error_response("Cart not found")
 
-        cart_items = cart.items.all()
+        cart_items = cart.items.select_related("product", "variant").all()
 
         if not cart_items.exists():
             return error_response("Cart is empty")
@@ -86,7 +91,6 @@ class CreateOrderFromCartView(APIView):
             if item.variant and item.variant.stock < item.quantity:
                 return error_response(
                     f"Insufficient stock for {item.product.name}. "
-                    f"Variant ID: {item.variant.variantid}, "
                     f"Available Stock: {item.variant.stock}, "
                     f"Cart Quantity: {item.quantity}"
                 )
@@ -101,9 +105,7 @@ class CreateOrderFromCartView(APIView):
                 return error_response("Coupon expired, inactive or limit reached")
 
             if total_amount < coupon.min_order_amount:
-                return error_response(
-                    "Order amount is less than minimum coupon amount"
-                )
+                return error_response("Order amount is less than minimum coupon amount")
 
             if coupon.discount_type == "percentage":
                 discount_amount = (total_amount * coupon.discount_value) / 100
@@ -125,13 +127,6 @@ class CreateOrderFromCartView(APIView):
             final_amount=final_amount
         )
 
-        Notification.objects.create(
-            user=request.user,
-            title="Order Placed",
-            message=f"Your order #{order.orderid} has been placed successfully.",
-            notification_type="order"
-        )
-
         for item in cart_items:
             OrderItem.objects.create(
                 order=order,
@@ -144,6 +139,7 @@ class CreateOrderFromCartView(APIView):
 
             if item.variant:
                 item.variant.stock -= item.quantity
+                item.variant.is_in_stock = item.variant.stock > 0
                 item.variant.save()
 
         if coupon:
@@ -151,6 +147,15 @@ class CreateOrderFromCartView(APIView):
             coupon.save()
 
         cart_items.delete()
+
+        Notification.objects.create(
+            user=request.user,
+            title="Order Placed",
+            message=f"Your order #{order.orderid} has been placed successfully.",
+            notification_type="order"
+        )
+
+        logger.info(f"Order created | OrderID={order.orderid} | User={request.user.email}")
 
         serializer = OrderSerializer(order)
 
@@ -165,17 +170,48 @@ class MyOrdersView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if request.user.role == "admin":
-            orders = Order.objects.all().order_by("-orderid")
-        else:
-            orders = Order.objects.filter(user=request.user).order_by("-orderid")
+        orders = get_order_queryset(request)
 
-        serializer = OrderSerializer(orders, many=True)
+        search = request.query_params.get("search")
+        order_status = request.query_params.get("order_status")
+        payment_status = request.query_params.get("payment_status")
+        start_date = request.query_params.get("start_date")
+        end_date = request.query_params.get("end_date")
 
-        return success_response(
-            "Orders fetched successfully",
-            serializer.data
-        )
+        if search:
+            orders = orders.filter(
+                Q(orderid__icontains=search) |
+                Q(user__email__icontains=search) |
+                Q(phone__icontains=search)
+            )
+
+        if order_status:
+            orders = orders.filter(order_status=order_status)
+
+        if payment_status:
+            orders = orders.filter(payment_status=payment_status)
+
+        if start_date and end_date:
+            orders = orders.filter(created_at__date__range=[start_date, end_date])
+
+        page_number = request.query_params.get("page", 1)
+        page_size = int(request.query_params.get("page_size", 10))
+
+        paginator = Paginator(orders, page_size)
+        page_obj = paginator.get_page(page_number)
+
+        serializer = OrderSerializer(page_obj.object_list, many=True)
+
+        return Response({
+            "success": True,
+            "message": "Orders fetched successfully",
+            "total_orders": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "data": serializer.data
+        })
 
 
 class OrderDetailView(APIView):
@@ -184,7 +220,6 @@ class OrderDetailView(APIView):
     def get_order(self, request, pk):
         if request.user.role == "admin":
             return Order.objects.get(orderid=pk)
-
         return Order.objects.get(orderid=pk, user=request.user)
 
     def get(self, request, pk):
@@ -195,10 +230,7 @@ class OrderDetailView(APIView):
 
         serializer = OrderSerializer(order)
 
-        return success_response(
-            "Order fetched successfully",
-            serializer.data
-        )
+        return success_response("Order fetched successfully", serializer.data)
 
     def delete(self, request, pk):
         try:
@@ -219,6 +251,7 @@ class OrderDetailView(APIView):
 class CancelOrderView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @transaction.atomic
     def put(self, request, pk):
         try:
             if request.user.role == "admin":
@@ -234,6 +267,12 @@ class CancelOrderView(APIView):
         if order.order_status == "cancelled":
             return error_response("Order already cancelled")
 
+        for item in order.items.all():
+            if item.variant:
+                item.variant.stock += item.quantity
+                item.variant.is_in_stock = item.variant.stock > 0
+                item.variant.save()
+
         order.order_status = "cancelled"
         order.save()
 
@@ -244,12 +283,11 @@ class CancelOrderView(APIView):
             notification_type="order"
         )
 
+        logger.info(f"Order cancelled | OrderID={order.orderid}")
+
         serializer = OrderSerializer(order)
 
-        return success_response(
-            "Order cancelled successfully",
-            serializer.data
-        )
+        return success_response("Order cancelled successfully", serializer.data)
 
 
 class UpdateOrderStatusView(APIView):
@@ -309,10 +347,6 @@ class UpdateOrderStatusView(APIView):
                 )
 
         order.order_status = new_status
-
-        if new_status == "delivered" and order.payment_status == "pending":
-            order.payment_status = "paid"
-
         order.save()
 
         Notification.objects.create(
@@ -325,14 +359,13 @@ class UpdateOrderStatusView(APIView):
         try:
             send_order_status_email(order)
         except Exception as e:
-            print("Email Error:", e)
+            logger.warning(f"Order email failed | OrderID={order.orderid} | Error={e}")
+
+        logger.info(f"Order status updated | OrderID={order.orderid} | Status={new_status}")
 
         serializer = OrderSerializer(order)
 
-        return success_response(
-            "Order status updated successfully",
-            serializer.data
-        )
+        return success_response("Order status updated successfully", serializer.data)
 
 
 class OrderTrackingView(APIView):
@@ -385,3 +418,34 @@ class OrderTrackingView(APIView):
                 "tracking": tracking
             }
         )
+
+
+class OrderSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != "admin":
+            return error_response(
+                "Only admin can view order summary",
+                status.HTTP_403_FORBIDDEN
+            )
+
+        total_revenue = Order.objects.filter(
+            payment_status="paid"
+        ).aggregate(total=Sum("final_amount"))["total"] or 0
+
+        data = {
+            "total_orders": Order.objects.count(),
+            "pending_orders": Order.objects.filter(order_status="pending").count(),
+            "confirmed_orders": Order.objects.filter(order_status="confirmed").count(),
+            "packed_orders": Order.objects.filter(order_status="packed").count(),
+            "shipped_orders": Order.objects.filter(order_status="shipped").count(),
+            "out_for_delivery_orders": Order.objects.filter(order_status="out_for_delivery").count(),
+            "delivered_orders": Order.objects.filter(order_status="delivered").count(),
+            "cancelled_orders": Order.objects.filter(order_status="cancelled").count(),
+            "paid_orders": Order.objects.filter(payment_status="paid").count(),
+            "pending_payments": Order.objects.filter(payment_status="pending").count(),
+            "total_revenue": total_revenue,
+        }
+
+        return success_response("Order summary fetched successfully", data)
