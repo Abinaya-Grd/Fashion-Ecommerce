@@ -18,6 +18,8 @@ from categories.views import (
     BrandDetailView,
 )
 
+from ecommerce_backend.views import home
+
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -39,7 +41,7 @@ schema_view = get_schema_view(
 
 
 urlpatterns = [
-
+     path("", home),
     path('admin/', admin.site.urls),
 
     path('api/accounts/', include('accounts.urls')),
