@@ -2,6 +2,11 @@ from pathlib import Path
 from datetime import timedelta
 from decouple import config
 import dj_database_url
+from decouple import config
+import dj_database_url
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -20,6 +25,7 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
+
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -54,6 +60,8 @@ INSTALLED_APPS = [
     "banners",
     "dashboard",
     "purchase_returns",
+    "cloudinary",
+    "cloudinary_storage"
 ]
 
 MIDDLEWARE = [
@@ -89,13 +97,31 @@ WSGI_APPLICATION = "ecommerce_backend.wsgi.application"
 
 
 
-DATABASES = {
-    "default": dj_database_url.parse(
-        config("DATABASE_URL"),
-        conn_max_age=600,
-        ssl_require=True,
-    )
-}
+
+
+DATABASE_URL = config("DATABASE_URL", default="")
+
+if DATABASE_URL:
+   
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
+    }
+else:
+   
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": config("DB_NAME"),
+            "USER": config("DB_USER"),
+            "PASSWORD": config("DB_PASSWORD"),
+            "HOST": config("DB_HOST"),
+            "PORT": config("DB_PORT"),
+        }
+    }
 AUTH_USER_MODEL = "accounts.CustomUser"
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -120,6 +146,13 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5500",
     "http://localhost:5500",
 ]
+
+cloudinary.config(
+    cloud_name=config("CLOUDINARY_CLOUD_NAME"),
+    api_key=config("CLOUDINARY_API_KEY"),
+    api_secret=config("CLOUDINARY_API_SECRET"),
+    secure=True,
+)
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Asia/Kolkata"
 USE_I18N = True
@@ -129,8 +162,7 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
 
 RAZORPAY_KEY_ID = config("RAZORPAY_KEY_ID")
 RAZORPAY_KEY_SECRET = config("RAZORPAY_KEY_SECRET")

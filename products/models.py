@@ -27,7 +27,6 @@ class Product(models.Model):
 
     # Product SKU optional. Variant SKU is the main stock SKU.
     sku = models.CharField(max_length=100, unique=True, blank=True, null=True)
-
     thumbnail = models.ImageField(upload_to='products/', blank=True, null=True)
 
     price = models.DecimalField(max_digits=10, decimal_places=2)
