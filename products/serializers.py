@@ -12,7 +12,7 @@ class ProductSerializer(serializers.ModelSerializer):
     subcategoryid = serializers.IntegerField(source='subcategory.id', read_only=True)
     productstyleid = serializers.IntegerField(source='product_style.id', read_only=True)
     brandid = serializers.IntegerField(source='brand.id', read_only=True)
-
+    thumbnail = serializers.SerializerMethodField()
     category_details = CategorySerializer(source='category', read_only=True)
     subcategory_details = SubCategorySerializer(source='subcategory', read_only=True)
     product_style_details = ProductStyleSerializer(source='product_style', read_only=True)
@@ -60,6 +60,11 @@ class ProductSerializer(serializers.ModelSerializer):
             'product_style': {'write_only': True, 'required': False},
             'brand': {'write_only': True},
         }
+ 
+    def get_thumbnail(self, obj):
+        if obj.thumbnail:
+         return obj.thumbnail.url
+        return None
 
     def get_stock_status(self, obj):
         if obj.stock == 0:
