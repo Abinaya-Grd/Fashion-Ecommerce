@@ -1,6 +1,6 @@
 from django.db import models
 from django.utils.text import slugify
-
+from cloudinary.models import CloudinaryField
 
 class Category(models.Model):
     STATUS_CHOICES = (
@@ -94,7 +94,7 @@ class Brand(models.Model):
     
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=120, unique=True, blank=True)
-    logo = models.ImageField(upload_to='brands/', blank=True, null=True)
+    logo = CloudinaryField("logo", blank=True, null=True)
     description = models.TextField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     created_at = models.DateTimeField(auto_now_add=True)
