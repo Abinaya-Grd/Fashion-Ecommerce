@@ -61,17 +61,23 @@ class ProductStyleSerializer(serializers.ModelSerializer):
 
 
 class BrandSerializer(serializers.ModelSerializer):
-    brandid = serializers.IntegerField(source='id', read_only=True)
+    brandid = serializers.IntegerField(source="id", read_only=True)
+    logo = serializers.SerializerMethodField()
 
     class Meta:
         model = Brand
         fields = [
-            'brandid',
-            'name',
-            'slug',
-            'logo',
-            'description',
-            'status',
-            'created_at',
-            'updated_at',
+            "brandid",
+            "name",
+            "slug",
+            "logo",
+            "description",
+            "status",
+            "created_at",
+            "updated_at",
         ]
+
+    def get_logo(self, obj):
+        if obj.logo:
+            return obj.logo.build_url()
+        return None
