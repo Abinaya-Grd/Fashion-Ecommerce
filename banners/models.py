@@ -12,7 +12,17 @@ class Banner(models.Model):
         ("mobile", "Mobile"),
         ("both", "Both"),
     )
+    
+    BANNER_TYPE = (
+    ("hero", "Hero"),
+    ("festival", "Festival"),
+     )
 
+    banner_type = models.CharField(
+    max_length=20,
+    choices=BANNER_TYPE,
+    default="hero"
+     )
     bannerid = models.AutoField(primary_key=True)
 
     title = models.CharField(max_length=200)

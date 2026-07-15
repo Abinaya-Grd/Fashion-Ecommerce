@@ -3,7 +3,6 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 
 from .models import Banner
 from .serializers import BannerSerializer
@@ -33,7 +32,16 @@ class BannerListCreateView(APIView):
         return []
 
     def get(self, request):
+
         banners = Banner.objects.all()
+
+        # Filter by banner type
+        banner_type = request.GET.get("banner_type")
+
+        if banner_type:
+            banners = banners.filter(banner_type=banner_type)
+
+        banners = banners.order_by("display_order")
 
         serializer = BannerSerializer(
             banners,
@@ -51,6 +59,7 @@ class BannerListCreateView(APIView):
         serializer = BannerSerializer(data=request.data)
 
         if serializer.is_valid():
+
             serializer.save()
 
             return success_response(
@@ -106,6 +115,7 @@ class BannerDetailView(APIView):
         )
 
         if serializer.is_valid():
+
             serializer.save()
 
             return success_response(
@@ -141,6 +151,14 @@ class ActiveBannerView(APIView):
             end_date__gte=today
         )
 
+        # Filter by banner type
+        banner_type = request.GET.get("banner_type")
+
+        if banner_type:
+            banners = banners.filter(banner_type=banner_type)
+
+        banners = banners.order_by("display_order")
+
         serializer = BannerSerializer(
             banners,
             many=True,
@@ -162,6 +180,13 @@ class WebBannerView(APIView):
             status="active"
         )
 
+        banner_type = request.GET.get("banner_type")
+
+        if banner_type:
+            banners = banners.filter(banner_type=banner_type)
+
+        banners = banners.order_by("display_order")
+
         serializer = BannerSerializer(
             banners,
             many=True,
@@ -182,6 +207,13 @@ class MobileBannerView(APIView):
             device__in=["mobile", "both"],
             status="active"
         )
+
+        banner_type = request.GET.get("banner_type")
+
+        if banner_type:
+            banners = banners.filter(banner_type=banner_type)
+
+        banners = banners.order_by("display_order")
 
         serializer = BannerSerializer(
             banners,
